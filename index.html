@@ -1,580 +1,578 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  VolumeX, 
-  Plus, 
-  Minus, 
-  Calendar, 
-  Clock, 
-  Sparkles,
-  Globe,
-  Zap,
-  Sun,
-  Moon,
-  Instagram
-} from "lucide-react";
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스마트타이머 - Smart Timer Deck</title>
+  
+  <!-- 1. Tailwind CSS 플레이 CDN 적용 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 2. 가독성 높은 구글 폰트(Inter, Noto Sans KR, JetBrains Mono) 및 스타일 지정 -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@400;700;800&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  
+  <!-- 3. Lucide 아이콘 패키지 CDN 로드 -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-type TimerStatus = "idle" | "running" | "paused" | "finished";
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans KR', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* 미세 그리드 격자 무늬 배경 데코레이션 */
+    .grid-bg {
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    /* 서서히 돌아가는 아이콘 애니메이션 */
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+      animation: spin-slow 12s linear infinite;
+    }
+    /* 크롬 슬라이더 기본 디자인 커스텀 */
+    input[type="range"]::-webkit-slider-thumb {
+      background: #22d3ee;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#070913] text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none">
 
-interface Preset {
-  id: string;
-  label: string;
-  minutes: number;
-  emoji: string;
-}
+  <!-- 백그라운드 우주 아우라 광원 장식 -->
+  <div class="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full bg-indigo-600/20 blur-[80px] sm:blur-[120px] pointer-events-none"></div>
+  <div class="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[300px] sm:w-[450px] h-[300px] sm:h-[450px] rounded-full bg-pink-600/15 blur-[90px] sm:blur-[130px] pointer-events-none"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-cyan-500/10 blur-[150px] pointer-events-none"></div>
+  
+  <!-- 그리드 레이어 -->
+  <div class="absolute inset-0 grid-bg pointer-events-none"></div>
 
-interface TimeZoneConfig {
-  id: string;
-  cityKo: string;
-  zone: string;
-  flag: string;
-  offset: string;
-}
+  <!-- 메인 스마트 타임 덱 카드 -->
+  <div id="timer-card" class="relative bg-slate-900/90 backdrop-blur-2xl border-2 border-white/15 shadow-[0_0_80px_rgba(99,102,241,0.2)] rounded-[32px] p-6 sm:p-7 max-w-md w-full overflow-hidden z-10">
+    
+    <!-- 상단 장식 네온 라인 -->
+    <div class="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent"></div>
+    <div class="absolute top-1.5 right-4 text-[9px] font-mono text-cyan-400/50 select-none tracking-widest font-bold">SMART_DECK_V2</div>
 
-export default function App() {
-  // 1. 타이머 상태 정의
-  const [durationMinutes, setDurationMinutes] = useState<number>(5); // 설정 시간 (기본 5분)
-  const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(5 * 60); // 남은 시간 (초 단위)
-  const [status, setStatus] = useState<TimerStatus>("idle"); // 타이머 상태
-  const [isAlarmPlaying, setIsAlarmPlaying] = useState<boolean>(false); // 알림음 재생 여부
+    <!-- 1. 헤더: 오늘 날짜 및 헤더 -->
+    <div class="flex flex-col items-center text-center mt-1 mb-5">
+      <!-- 하이테크 스타일 오늘 날짜 패널 (한국어 + 미국 뉴욕) -->
+      <div class="flex flex-col items-center gap-1.5 text-xs font-mono text-cyan-300 bg-slate-950 px-4 py-3 rounded-2xl border border-white/10 mb-4 w-full shadow-[inset_0_1px_4px_rgba(0,0,0,0.6)]">
+        <div class="flex items-center gap-1.5">
+          <i data-lucide="calendar" class="text-cyan-400 w-3.5 h-3.5"></i>
+          <span id="today-date" class="text-slate-100 font-bold tracking-tight">날짜 동기화 중...</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-[10px] text-indigo-300 font-semibold tracking-wider border-t border-white/5 pt-1.5 w-full justify-center">
+          <span class="text-indigo-400">🇺🇸 US EST:</span>
+          <span id="us-today-date" class="uppercase font-bold text-slate-200">LOADING...</span>
+        </div>
+      </div>
 
-  // 2. Refs 정의 (타이머 인터벌 및 Web Audio API 관리)
-  const timerIntervalRef = useRef<any>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const beepIntervalRef = useRef<any>(null);
+      <h1 class="text-2xl font-black text-white tracking-[0.12em] uppercase flex items-center gap-2">
+        <i data-lucide="clock" class="text-cyan-400 animate-spin-slow w-5 h-5"></i>
+        스마트타이머
+      </h1>
+      <div class="text-[10px] font-mono font-bold text-slate-400 mt-1 tracking-widest uppercase">INTELLIGENT TIMER DECK</div>
+    </div>
 
-  // 3. 오늘 날짜 구하기 (한국어 포맷 및 미국 동부 포맷)
-  const [todayDate, setTodayDate] = useState<string>("");
-  const [usTodayDate, setUsTodayDate] = useState<string>("");
+    <!-- 2. 거대 LCD 시간 표시 화면 -->
+    <div class="relative flex flex-col items-center justify-center bg-black border-2 border-white/10 rounded-2xl p-6 shadow-[inset_0_3px_15px_rgba(0,0,0,1)] mb-5">
+      <!-- 타이머 진행 상황 빔 트랙 -->
+      <div class="absolute inset-x-0 bottom-0 h-1 bg-slate-900 overflow-hidden rounded-b-2xl">
+        <div id="progress-bar" class="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-pink-500 shadow-[0_0_10px_rgba(34,211,238,0.7)] transition-all duration-300" style="width: 0%"></div>
+      </div>
 
-  // 4. 세계 타임존 리스트 구성 (고밀도 슬림 레이아웃용)
-  const timeZones: TimeZoneConfig[] = [
-    { id: "seoul", cityKo: "서울", zone: "Asia/Seoul", flag: "🇰🇷", offset: "KST" },
-    { id: "tokyo", cityKo: "도쿄", zone: "Asia/Tokyo", flag: "🇯🇵", offset: "JST" },
-    { id: "newyork", cityKo: "뉴욕", zone: "America/New_York", flag: "🇺🇸", offset: "EST" },
-    { id: "losangeles", cityKo: "LA", zone: "America/Los_Angeles", flag: "🇺🇸", offset: "PST" },
-    { id: "london", cityKo: "런던", zone: "Europe/London", flag: "🇬🇧", offset: "GMT" },
-    { id: "paris", cityKo: "파리", zone: "Europe/Paris", flag: "🇫🇷", offset: "CET" },
-  ];
+      <!-- 거대 타이머 수치 -->
+      <div id="time-string" class="text-6xl font-mono font-black tracking-tight transition-all duration-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]">
+        05:00
+      </div>
 
-  const [worldTimes, setWorldTimes] = useState<Record<string, string>>({});
+      <!-- 시스템 상태 콘솔 뱃지 -->
+      <div id="status-badge" class="mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border text-indigo-300 bg-indigo-950/70 border-indigo-500/40 transition-all duration-300 tracking-wider">
+        대기 중 (STANDBY)
+      </div>
+    </div>
 
-  // 5. 타이머 프리셋 목록 정의
-  const presets: Preset[] = [
-    { id: "pomodoro", label: "집중", minutes: 25, emoji: "🍅" },
-    { id: "short-break", label: "휴식", minutes: 5, emoji: "☕" },
-    { id: "long-break", label: "리프레시", minutes: 15, emoji: "🌳" },
-    { id: "intensive", label: "몰입", minutes: 50, emoji: "🔥" },
-  ];
+    <!-- 3. 원터치 퀵 프리셋 대시 -->
+    <div class="mb-4">
+      <div class="flex items-center gap-1.5 mb-2">
+        <i data-lucide="zap" class="text-cyan-400 w-3.5 h-3.5"></i>
+        <span class="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">원터치 퀵 프리셋</span>
+      </div>
+      <div class="grid grid-cols-4 gap-2">
+        <button onclick="applyPreset(25)" id="preset-pomodoro" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
+          <span class="text-base mb-0.5">🍅</span>
+          <span class="text-xs font-bold">집중</span>
+          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">25분</span>
+        </button>
+        <button onclick="applyPreset(5)" id="preset-short" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
+          <span class="text-base mb-0.5">☕</span>
+          <span class="text-xs font-bold">휴식</span>
+          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">5분</span>
+        </button>
+        <button onclick="applyPreset(15)" id="preset-long" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
+          <span class="text-base mb-0.5">🌳</span>
+          <span class="text-xs font-bold">리프레시</span>
+          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">15분</span>
+        </button>
+        <button onclick="applyPreset(50)" id="preset-intensive" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
+          <span class="text-base mb-0.5">🔥</span>
+          <span class="text-xs font-bold">몰입</span>
+          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">50분</span>
+        </button>
+      </div>
+    </div>
 
-  // 6. 실시간 업데이트 로직 (오늘 날짜 및 세계 시간)
-  useEffect(() => {
-    const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
-    const updateDateTime = () => {
+    <!-- 4. 정밀 타이머 설정 영역 -->
+    <div class="mb-4 space-y-2">
+      <div class="flex items-center justify-between text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">
+        <span class="flex items-center gap-1">
+          <i data-lucide="sparkles" class="text-cyan-400 w-3 h-3"></i>
+          정밀 타이머 설정 (1 - 99분)
+        </span>
+        <span id="current-setting-text" class="text-cyan-300 font-extrabold">5분 설정됨</span>
+      </div>
+
+      <div class="space-y-3 p-3.5 bg-slate-950 border-2 border-white/10 rounded-2xl shadow-[inset_0_2px_6px_rgba(0,0,0,0.8)]">
+        <div class="flex gap-3 items-center">
+          <!-- 숫자 정밀 입력창 -->
+          <input 
+            id="duration-number-input"
+            type="number" 
+            min="1" 
+            max="99"
+            value="5"
+            oninput="handleDurationChange(parseInt(this.value) || 0)"
+            class="w-16 h-9 text-center text-sm font-mono font-black text-cyan-300 bg-slate-900 border-2 border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+          />
+          <!-- 슬라이더 조절기 -->
+          <input 
+            id="duration-range-slider"
+            type="range" 
+            min="1" 
+            max="99" 
+            value="5"
+            oninput="handleDurationChange(parseInt(this.value) || 1)"
+            class="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+          />
+        </div>
+
+        <!-- 빠른 증감 버튼군 -->
+        <div class="grid grid-cols-4 gap-2">
+          <button onclick="adjustDuration(-5)" class="py-1.5 text-xs font-mono font-bold text-slate-200 bg-slate-900 border-2 border-white/10 rounded-xl hover:bg-slate-800 hover:border-white/25 transition flex items-center justify-center gap-0.5 cursor-pointer">
+            <i data-lucide="minus" class="w-3 h-3 text-pink-400"></i>5분
+          </button>
+          <button onclick="adjustDuration(-1)" class="py-1.5 text-xs font-mono font-bold text-slate-200 bg-slate-900 border-2 border-white/10 rounded-xl hover:bg-slate-800 hover:border-white/25 transition flex items-center justify-center gap-0.5 cursor-pointer">
+            <i data-lucide="minus" class="w-3 h-3 text-pink-400"></i>1분
+          </button>
+          <button onclick="adjustDuration(1)" class="py-1.5 text-xs font-mono font-bold text-slate-200 bg-slate-900 border-2 border-white/10 rounded-xl hover:bg-slate-800 hover:border-white/25 transition flex items-center justify-center gap-0.5 cursor-pointer">
+            <i data-lucide="plus" class="w-3 h-3 text-cyan-400"></i>1분
+          </button>
+          <button onclick="adjustDuration(5)" class="py-1.5 text-xs font-mono font-bold text-slate-200 bg-slate-900 border-2 border-white/10 rounded-xl hover:bg-slate-800 hover:border-white/25 transition flex items-center justify-center gap-0.5 cursor-pointer">
+            <i data-lucide="plus" class="w-3 h-3 text-cyan-400"></i>5분
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 메인 시스템 컨트롤러 스위치 -->
+    <div class="space-y-2">
+      <div class="grid grid-cols-3 gap-2.5">
+        <!-- 시작 -->
+        <button id="btn-start" onclick="startTimer()" class="py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider bg-cyan-400 text-black hover:bg-cyan-300 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.4)] hover:shadow-[0_0_20px_rgba(34,211,238,0.6)]">
+          <i data-lucide="play" class="w-3 h-3 fill-current"></i>시작
+        </button>
+
+        <!-- 일시정지 -->
+        <button id="btn-pause" onclick="pauseTimer()" disabled class="py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none">
+          <i data-lucide="pause" class="w-3 h-3 fill-current"></i>일시정지
+        </button>
+
+        <!-- 초기화 -->
+        <button id="btn-reset" onclick="resetTimer()" class="py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase bg-slate-900 text-slate-100 border-2 border-white/10 hover:border-white/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-800">
+          <i data-lucide="rotate-ccw" class="w-3 h-3"></i>초기화
+        </button>
+      </div>
+
+      <!-- 알림음 정지 버튼 (알람 재생 시에만 출력) -->
+      <button id="btn-stop-alarm" onclick="stopAlarm()" class="hidden w-full py-3 px-3 rounded-xl text-xs font-mono font-black uppercase text-white bg-gradient-to-r from-rose-600 to-pink-600 shadow-xl shadow-rose-950/50 flex items-center justify-center gap-1.5 animate-bounce cursor-pointer">
+        <i data-lucide="volume-x" class="w-3.5 h-3.5"></i>알림음 정지
+      </button>
+    </div>
+
+    <!-- 6. 하이테크 글로벌 타임존 패널 -->
+    <div class="mt-4 pt-4 border-t-2 border-white/10">
+      <div class="flex items-center gap-1.5 mb-2.5">
+        <i data-lucide="globe" class="text-cyan-400 w-3 h-3"></i>
+        <span class="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">글로벌 관측 타임존</span>
+      </div>
+      
+      <div class="grid grid-cols-3 gap-2" id="world-clock-grid">
+        <!-- JS에 의해 각 타임존 카드가 빌드됩니다. -->
+      </div>
+    </div>
+
+    <!-- 7. 카드 내부 하단 고대비 크레딧 및 인스타그램 연결 -->
+    <div class="mt-5 pt-3.5 border-t-2 border-white/10 text-center text-xs text-slate-400 font-medium flex flex-col items-center gap-2">
+      <div class="font-mono text-[10px] tracking-wider text-slate-400 uppercase">
+        제작자: <span class="text-white font-black hover:text-cyan-300 transition-colors duration-300">HYEWON</span>
+      </div>
+      <a 
+        href="https://www.instagram.com/rose_ai_log/" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        class="flex items-center gap-1.5 text-slate-100 hover:text-pink-400 hover:border-pink-500/30 transition-all duration-300 bg-slate-950 hover:bg-pink-500/10 px-4 py-2 rounded-full border border-white/15 font-mono text-[10px] tracking-widest shadow-md uppercase"
+      >
+        <i data-lucide="instagram" class="text-pink-500 animate-pulse w-3 h-3"></i>
+        <span>@rose_ai_log</span>
+      </a>
+    </div>
+
+  </div>
+
+  <!-- 8. 웹 앱 코어 스크립트 (Vanilla JS) -->
+  <script>
+    // 1. 상태 변수 정의
+    let durationMinutes = 5;
+    let timeLeftSeconds = 5 * 60;
+    let timerStatus = "idle"; // 'idle' | 'running' | 'paused' | 'finished'
+    let isAlarmPlaying = false;
+
+    let timerInterval = null;
+    let beepInterval = null;
+    let audioCtx = null;
+
+    // 타임존 구성 정보
+    const timeZones = [
+      { id: "seoul", cityKo: "서울", zone: "Asia/Seoul", flag: "🇰🇷", offset: "KST" },
+      { id: "tokyo", cityKo: "도쿄", zone: "Asia/Tokyo", flag: "🇯🇵", offset: "JST" },
+      { id: "newyork", cityKo: "뉴욕", zone: "America/New_York", flag: "🇺🇸", offset: "EST" },
+      { id: "losangeles", cityKo: "LA", zone: "America/Los_Angeles", flag: "🇺🇸", offset: "PST" },
+      { id: "london", cityKo: "런던", zone: "Europe/London", flag: "🇬🇧", offset: "GMT" },
+      { id: "paris", cityKo: "파리", zone: "Europe/Paris", flag: "🇫🇷", offset: "CET" },
+    ];
+
+    // 2. 초기 렌더링 및 글로벌 시계 구축
+    function initWorldClocks() {
+      const grid = document.getElementById("world-clock-grid");
+      grid.innerHTML = timeZones.map(tz => `
+        <div id="tz-${tz.id}" class="p-2.5 bg-slate-950 border-2 border-white/5 hover:border-white/15 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]">
+          <div class="flex items-center justify-between mb-1 border-b border-white/5 pb-1">
+            <span class="text-xs font-bold text-slate-100 flex items-center gap-0.5">
+              <span class="text-xs leading-none select-none">${tz.flag}</span>
+              ${tz.cityKo}
+            </span>
+            <span id="icon-${tz.id}"><i data-lucide="sun" class="text-amber-400 w-2.5 h-2.5"></i></span>
+          </div>
+          <div class="flex items-baseline justify-between mt-1">
+            <span id="time-${tz.id}" class="font-mono text-sm font-black text-cyan-300 tracking-tight drop-shadow-[0_1px_5px_rgba(34,211,238,0.2)]">--:--</span>
+            <span class="text-[8px] font-mono text-indigo-300 font-extrabold uppercase">${tz.offset}</span>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    // 시간 포맷화 (MM:SS)
+    function formatTime(totalSeconds) {
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      return `${mins < 10 ? '0' + mins : mins}:${secs < 10 ? '0' + secs : secs}`;
+    }
+
+    // 낮과 밤을 판단하는 로직 (오전 6시 ~ 오후 6시 = 낮)
+    function checkIsDaytime(timeStr) {
+      if (!timeStr || timeStr.includes("--")) return true;
+      const hour = parseInt(timeStr.split(":")[0]);
+      return hour >= 6 && hour < 18;
+    }
+
+    // 3. UI 실시간 동기화 업데이트 함수
+    function updateUI() {
+      // 시간 표시 변경
+      const timeDisplay = document.getElementById("time-string");
+      timeDisplay.innerText = formatTime(timeLeftSeconds);
+
+      if (timerStatus === "finished") {
+        timeDisplay.className = "text-6xl font-mono font-black tracking-tight transition-all duration-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] text-rose-500 drop-shadow-[0_0_20px_rgba(244,63,94,0.8)] animate-pulse";
+      } else {
+        timeDisplay.className = "text-6xl font-mono font-black tracking-tight transition-all duration-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]";
+      }
+
+      // 상태 메시지 뱃지 갱신
+      const statusBadge = document.getElementById("status-badge");
+      if (timerStatus === "running") {
+        statusBadge.innerText = "타이머 작동 중 (ONLINE)";
+        statusBadge.className = "mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border text-emerald-400 bg-emerald-950/70 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.2)] tracking-wider";
+      } else if (timerStatus === "paused") {
+        statusBadge.innerText = "일시정지됨 (PAUSED)";
+        statusBadge.className = "mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border text-amber-400 bg-amber-950/70 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.2)] tracking-wider";
+      } else if (timerStatus === "finished") {
+        statusBadge.innerText = "시간 종료! 알람 작동 중";
+        statusBadge.className = "mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border text-rose-100 bg-rose-700 border-rose-500 animate-pulse shadow-[0_0_20px_rgba(244,63,94,0.5)] tracking-wider";
+      } else {
+        statusBadge.innerText = "대기 중 (STANDBY)";
+        statusBadge.className = "mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border text-indigo-300 bg-indigo-950/70 border-indigo-500/40 tracking-wider";
+      }
+
+      // 프로그레스바 갱신
+      const totalInitial = durationMinutes * 60;
+      const percent = totalInitial > 0 ? ((totalInitial - timeLeftSeconds) / totalInitial) * 100 : 0;
+      document.getElementById("progress-bar").style.width = `${percent}%`;
+
+      // 인풋 및 슬라이더 활성화 상태 제어
+      const numInput = document.getElementById("duration-number-input");
+      const rangeSlider = document.getElementById("duration-range-slider");
+      numInput.value = durationMinutes;
+      rangeSlider.value = durationMinutes;
+      document.getElementById("current-setting-text").innerText = `${durationMinutes}분 설정됨`;
+
+      if (timerStatus === "idle") {
+        numInput.removeAttribute("disabled");
+        rangeSlider.removeAttribute("disabled");
+      } else {
+        numInput.setAttribute("disabled", "true");
+        rangeSlider.setAttribute("disabled", "true");
+      }
+
+      // 프리셋 활성 스타일 부여
+      document.querySelectorAll(".preset-btn").forEach(btn => {
+        btn.className = "preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20";
+      });
+      if (timerStatus === "idle") {
+        let activePresetId = "";
+        if (durationMinutes === 25) activePresetId = "preset-pomodoro";
+        else if (durationMinutes === 5) activePresetId = "preset-short";
+        else if (durationMinutes === 15) activePresetId = "preset-long";
+        else if (durationMinutes === 50) activePresetId = "preset-intensive";
+
+        if (activePresetId) {
+          const activeBtn = document.getElementById(activePresetId);
+          if (activeBtn) {
+            activeBtn.className = "preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-indigo-500/20 border-cyan-400 text-white shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/50";
+          }
+        }
+      }
+
+      // 시작 / 일시정지 조작 버튼 상태 동기화
+      const btnStart = document.getElementById("btn-start");
+      const btnPause = document.getElementById("btn-pause");
+      if (timerStatus === "running") {
+        btnStart.setAttribute("disabled", "true");
+        btnStart.className = "py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none";
+        
+        btnPause.removeAttribute("disabled");
+        btnPause.className = "py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider bg-amber-500 text-black hover:bg-amber-400 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(245,158,11,0.3)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] font-extrabold";
+      } else if (timerStatus === "paused" || timerStatus === "idle" || timerStatus === "finished") {
+        btnStart.removeAttribute("disabled");
+        btnStart.className = "py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider bg-cyan-400 text-black hover:bg-cyan-300 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.4)] hover:shadow-[0_0_20px_rgba(34,211,238,0.6)] font-extrabold";
+        
+        btnPause.setAttribute("disabled", "true");
+        btnPause.className = "py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none";
+      }
+
+      // 알림음 정지 버튼 보이기/감추기
+      const btnStopAlarm = document.getElementById("btn-stop-alarm");
+      if (isAlarmPlaying) {
+        btnStopAlarm.classList.remove("hidden");
+      } else {
+        btnStopAlarm.classList.add("hidden");
+      }
+    }
+
+    // 4. 타이머 제어 비즈니스 로직
+    function handleDurationChange(val) {
+      let corrected = val;
+      if (val > 99) corrected = 99;
+      if (val < 1) corrected = 1;
+
+      durationMinutes = corrected;
+      if (timerStatus === "idle") {
+        timeLeftSeconds = corrected * 60;
+      }
+      updateUI();
+    }
+
+    function adjustDuration(amount) {
+      if (timerStatus !== "idle") return;
+      handleDurationChange(durationMinutes + amount);
+    }
+
+    function applyPreset(minutes) {
+      if (timerStatus !== "idle") {
+        clearInterval(timerInterval);
+        stopAlarm();
+      }
+      durationMinutes = minutes;
+      timeLeftSeconds = minutes * 60;
+      timerStatus = "idle";
+      updateUI();
+    }
+
+    function startTimer() {
+      if (timerStatus === "running") return;
+
+      // 브라우저 소리 제한 해제 목적의 AudioContext 웜업
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+
+      timerStatus = "running";
+      updateUI();
+
+      timerInterval = setInterval(() => {
+        if (timeLeftSeconds <= 1) {
+          clearInterval(timerInterval);
+          timeLeftSeconds = 0;
+          timerStatus = "finished";
+          triggerAlarm();
+          updateUI();
+          return;
+        }
+        timeLeftSeconds--;
+        updateUI();
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      if (timerStatus !== "running") return;
+      clearInterval(timerInterval);
+      timerStatus = "paused";
+      updateUI();
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      stopAlarm();
+      timerStatus = "idle";
+      timeLeftSeconds = durationMinutes * 60;
+      updateUI();
+    }
+
+    // 5. Web Audio API 기반 오디오 합성 및 5회 비프 알람 경고 루프
+    function triggerAlarm() {
+      isAlarmPlaying = true;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+
+      const playSingleBeep = () => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 맑고 선명한 880Hz 비프 신호음
+
+        gain.gain.setValueAtTime(0, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.4);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      };
+
+      if (beepInterval) clearInterval(beepInterval);
+
+      let count = 0;
+      playSingleBeep();
+      count++;
+
+      beepInterval = setInterval(() => {
+        if (count >= 5) {
+          clearInterval(beepInterval);
+          beepInterval = null;
+          isAlarmPlaying = false;
+          updateUI();
+          return;
+        }
+        playSingleBeep();
+        count++;
+      }, 1000);
+    }
+
+    function stopAlarm() {
+      if (beepInterval) {
+        clearInterval(beepInterval);
+        beepInterval = null;
+      }
+      isAlarmPlaying = false;
+      updateUI();
+    }
+
+    // 6. 실시간 날짜 정보 및 글로벌 관측 타임존 업데이트 루틴
+    function updateDateAndTimes() {
       const date = new Date();
+      const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
       const year = date.getFullYear();
       const month = date.getMonth() + 1;
       const day = date.getDate();
       const dayOfWeek = days[date.getDay()];
-      setTodayDate(`${year}년 ${month}월 ${day}일 ${dayOfWeek}`);
+      document.getElementById("today-date").innerText = `${year}년 ${month}월 ${day}일 ${dayOfWeek}`;
 
-      // 미국 뉴욕(동부 표준시) 기준 현재 날짜
+      // 미국 뉴욕 동부 표준시 날짜 갱신
       try {
-        const options: Intl.DateTimeFormatOptions = {
+        const options = {
           timeZone: "America/New_York",
           year: "numeric",
           month: "long",
           day: "numeric",
           weekday: "long"
         };
-        setUsTodayDate(new Intl.DateTimeFormat("en-US", options).format(date));
+        document.getElementById("us-today-date").innerText = new Intl.DateTimeFormat("en-US", options).format(date);
       } catch (e) {
-        setUsTodayDate("US Date loading...");
+        document.getElementById("us-today-date").innerText = "DATETIME ERROR";
       }
 
-      // 세계 현지 시간 포맷팅
-      const updatedWorldTimes: Record<string, string> = {};
-      timeZones.forEach((tz) => {
+      // 글로벌 6대 도시 실시간 시계 동기화
+      timeZones.forEach(tz => {
         try {
-          updatedWorldTimes[tz.id] = new Intl.DateTimeFormat("ko-KR", {
+          const timeStr = new Intl.DateTimeFormat("ko-KR", {
             timeZone: tz.zone,
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
           }).format(date);
+
+          document.getElementById(`time-${tz.id}`).innerText = timeStr;
+
+          // 낮과 밤에 따라 선/문 아이콘을 동적으로 주입
+          const isDay = checkIsDaytime(timeStr);
+          const iconContainer = document.getElementById(`icon-${tz.id}`);
+          if (isDay) {
+            iconContainer.innerHTML = '<i data-lucide="sun" class="text-amber-400 w-3 h-3"></i>';
+          } else {
+            iconContainer.innerHTML = '<i data-lucide="moon" class="text-indigo-300 w-3 h-3"></i>';
+          }
         } catch (e) {
-          updatedWorldTimes[tz.id] = "--:--";
+          document.getElementById(`time-${tz.id}`).innerText = "--:--";
         }
       });
-      setWorldTimes(updatedWorldTimes);
-    };
-
-    updateDateTime();
-    const intervalId = setInterval(updateDateTime, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // 7. 시간 설정 입력값 조정 및 보정 함수
-  const handleDurationChange = (val: number) => {
-    let corrected = val;
-    if (val > 99) corrected = 99;
-    if (val < 1) corrected = 1;
-
-    setDurationMinutes(corrected);
-    if (status === "idle") {
-      setTimeLeftSeconds(corrected * 60);
-    }
-  };
-
-  const adjustDuration = (amount: number) => {
-    if (status !== "idle") return; 
-    const nextVal = durationMinutes + amount;
-    handleDurationChange(nextVal);
-  };
-
-  const applyPreset = (minutes: number) => {
-    if (status !== "idle") {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-      stopAlarm();
-    }
-    setDurationMinutes(minutes);
-    setTimeLeftSeconds(minutes * 60);
-    setStatus("idle");
-  };
-
-  // 8. 타이머 제어 함수들
-  const startTimer = () => {
-    if (status === "running") return; 
-
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    if (audioCtxRef.current.state === "suspended") {
-      audioCtxRef.current.resume();
+      lucide.createIcons();
     }
 
-    setStatus("running");
-
-    timerIntervalRef.current = setInterval(() => {
-      setTimeLeftSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerIntervalRef.current);
-          setStatus("finished");
-          triggerAlarm();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const pauseTimer = () => {
-    if (status !== "running") return;
-    clearInterval(timerIntervalRef.current);
-    setStatus("paused");
-  };
-
-  const resetTimer = () => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-    stopAlarm();
-
-    setStatus("idle");
-    setTimeLeftSeconds(durationMinutes * 60);
-  };
-
-  // 9. Web Audio API를 활용한 알림음 구현
-  const triggerAlarm = () => {
-    setIsAlarmPlaying(true);
-
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    const ctx = audioCtxRef.current;
-    if (ctx.state === "suspended") {
-      ctx.resume();
-    }
-
-    const playSingleBeep = () => {
-      if (!ctx) return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
-    };
-
-    if (beepIntervalRef.current) {
-      clearInterval(beepIntervalRef.current);
-    }
-
-    let count = 0;
-    playSingleBeep();
-    count++;
-
-    beepIntervalRef.current = setInterval(() => {
-      if (count >= 5) {
-        clearInterval(beepIntervalRef.current);
-        beepIntervalRef.current = null;
-        setIsAlarmPlaying(false);
-        return;
-      }
-      playSingleBeep();
-      count++;
-    }, 1000);
-  };
-
-  const stopAlarm = () => {
-    if (beepIntervalRef.current) {
-      clearInterval(beepIntervalRef.current);
-      beepIntervalRef.current = null;
-    }
-    setIsAlarmPlaying(false);
-  };
-
-  // 10. 포맷터 (남은 시간을 MM:SS 형식으로 변환)
-  const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    const formattedMins = mins < 10 ? `0${mins}` : `${mins}`;
-    const formattedSecs = secs < 10 ? `0${secs}` : `${secs}`;
-    return `${formattedMins}:${formattedSecs}`;
-  };
-
-  // 11. 상태 메시지 텍스트 및 스타일 가져오기
-  const getStatusInfo = () => {
-    switch (status) {
-      case "running":
-        return { 
-          text: "타이머 작동 중 (ONLINE)", 
-          color: "text-emerald-400 bg-emerald-950/70 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.2)]" 
-        };
-      case "paused":
-        return { 
-          text: "일시정지됨 (PAUSED)", 
-          color: "text-amber-400 bg-amber-950/70 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]" 
-        };
-      case "finished":
-        return { 
-          text: "시간 종료! 알람 작동 중", 
-          color: "text-rose-100 bg-rose-700 border-rose-500 animate-pulse shadow-[0_0_20px_rgba(244,63,94,0.5)] font-bold" 
-        };
-      case "idle":
-      default:
-        return { 
-          text: "대기 중 (STANDBY)", 
-          color: "text-indigo-300 bg-indigo-950/70 border-indigo-500/40" 
-        };
-    }
-  };
-
-  const statusInfo = getStatusInfo();
-
-  // 12. 진행 상황 비율 계산
-  const totalSecondsInitial = durationMinutes * 60;
-  const progressPercent = totalSecondsInitial > 0 
-    ? ((totalSecondsInitial - timeLeftSeconds) / totalSecondsInitial) * 100 
-    : 0;
-
-  // 13. 해당 도시 시간이 낮인지 확인
-  const isDaytime = (timeStr: string) => {
-    if (!timeStr || timeStr === "--:--") return true;
-    const hour = parseInt(timeStr.split(":")[0]);
-    return hour >= 6 && hour < 18;
-  };
-
-  return (
-    <div id="app-container" className="min-h-screen bg-[#070913] text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none font-sans">
-      
-      {/* 백그라운드 우주 아우라 광원 장식 */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full bg-indigo-600/20 blur-[80px] sm:blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[300px] sm:w-[450px] h-[300px] sm:h-[450px] rounded-full bg-pink-600/15 blur-[90px] sm:blur-[130px] pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-cyan-500/10 blur-[150px] pointer-events-none" />
-
-      {/* 미세 그리드 격자 무늬 배경 오버레이 */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
-
-      {/* 메인 스마트 타임 덱 */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        id="timer-card"
-        className="relative bg-slate-900/90 backdrop-blur-2xl border-2 border-white/15 shadow-[0_0_80px_rgba(99,102,241,0.2)] rounded-[32px] p-6 sm:p-7 max-w-md w-full overflow-hidden"
-      >
-        {/* 상단 장식 레이아웃 */}
-        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent" />
-        <div className="absolute top-1.5 right-4 text-[9px] font-mono text-cyan-400/50 select-none tracking-widest font-bold">SMART_DECK_V2</div>
-
-        {/* 상단: 오늘 날짜 및 헤더 */}
-        <div id="header-section" className="flex flex-col items-center text-center mt-1 mb-5">
-          
-          {/* 하이테크 스타일 날짜 패널 - 높은 대비 가독성 개선 */}
-          <div className="flex flex-col items-center gap-1.5 text-xs font-mono text-cyan-300 bg-slate-950 px-4 py-3 rounded-2xl border border-white/10 mb-4 w-full shadow-[inset_0_1px_4px_rgba(0,0,0,0.6)]">
-            <div className="flex items-center gap-1.5">
-              <Calendar size={13} className="text-cyan-400" />
-              <span id="today-date" className="text-slate-100 font-bold tracking-tight">{todayDate || "CALENDAR SYNC..."}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-indigo-300 font-semibold tracking-wider border-t border-white/5 pt-1.5 w-full justify-center">
-              <span className="text-indigo-400">🇺🇸 US EST:</span>
-              <span id="us-today-date" className="uppercase font-bold text-slate-200">{usTodayDate || "LOADING..."}</span>
-            </div>
-          </div>
-
-          <h1 id="app-title" className="text-2xl font-black text-white tracking-[0.12em] uppercase flex items-center gap-2">
-            <Clock className="text-cyan-400 animate-spin-slow" size={20} />
-            스마트타이머
-          </h1>
-          <div className="text-[10px] font-mono font-bold text-slate-400 mt-1 tracking-widest uppercase">INTELLIGENT TIMER DECK</div>
-        </div>
-
-        {/* 메인 시간 표시 패널 (고대비 LCD 스크린 스타일) */}
-        <div id="time-display-section" className="relative flex flex-col items-center justify-center bg-black border-2 border-white/10 rounded-2xl p-6 shadow-[inset_0_3px_15px_rgba(0,0,0,1)] mb-5">
-          
-          {/* 타이머 진행 네온 빔 트랙 */}
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900 overflow-hidden rounded-b-2xl">
-            <motion.div 
-              className="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-pink-500 shadow-[0_0_10px_rgba(34,211,238,0.7)]" 
-              style={{ width: `${progressPercent}%` }}
-              layoutId="progressBar"
-              transition={{ type: "spring", stiffness: 80, damping: 15 }}
-            />
-          </div>
-
-          {/* 거대 LED 스타일 숫자 표시 - 가독성을 극대화한 Solid Cyan & Red 테마 */}
-          <motion.div 
-            key={timeLeftSeconds}
-            initial={{ scale: 0.96, opacity: 0.9 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            id="time-string" 
-            className={`text-6xl font-mono font-black tracking-tight transition-all duration-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] ${
-              status === "finished" 
-                ? "text-rose-500 drop-shadow-[0_0_20px_rgba(244,63,94,0.8)] animate-pulse" 
-                : "text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]"
-            }`}
-          >
-            {formatTime(timeLeftSeconds)}
-          </motion.div>
-
-          {/* 시스템 상태 콘솔 뱃지 */}
-          <div id="status-badge" className={`mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border ${statusInfo.color} transition-all duration-300 tracking-wider`}>
-            {statusInfo.text}
-          </div>
-        </div>
-
-        {/* 1. 원터치 타이머 프리셋 대시 (가독성 향상, 뚜렷한 대비 버튼) */}
-        <div id="presets-container" className="mb-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Zap size={13} className="text-cyan-400 fill-cyan-400/20" />
-            <span className="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">원터치 퀵 프리셋</span>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {presets.map((preset) => (
-              <button
-                key={preset.id}
-                onClick={() => applyPreset(preset.minutes)}
-                className={`py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${
-                  durationMinutes === preset.minutes && status === "idle"
-                    ? "bg-indigo-950 border-cyan-400 text-white shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/50"
-                    : "bg-slate-950/80 border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20"
-                }`}
-              >
-                <span className="text-base mb-0.5 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{preset.emoji}</span>
-                <span className="text-xs font-bold">{preset.label}</span>
-                <span className="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">{preset.minutes}분</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 2. 상세 시간 조작 콘솔 (고대비 텍스트 가독성 확보) */}
-        <div id="settings-section" className="mb-4 space-y-2">
-          <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">
-            <span className="flex items-center gap-1">
-              <Sparkles size={12} className="text-cyan-400" />
-              정밀 타이머 설정 (1 - 99분)
-            </span>
-            <span className="text-cyan-300 font-extrabold">{durationMinutes}분 설정됨</span>
-          </div>
-
-          <div className="space-y-3 p-3.5 bg-slate-950 border-2 border-white/10 rounded-2xl shadow-[inset_0_2px_6px_rgba(0,0,0,0.8)]">
-            <div className="flex gap-3 items-center">
-              {/* 숫자 입력창 */}
-              <input 
-                id="duration-number-input"
-                type="number" 
-                min="1" 
-                max="99"
-                value={durationMinutes}
-                onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
-                disabled={status !== "idle"}
-                className="w-16 h-9 text-center text-sm font-mono font-black text-cyan-300 bg-slate-900 border-2 border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed"
-              />
-              {/* 테크 슬라이더 */}
-              <input 
-                id="duration-range-slider"
-                type="range" 
-                min="1" 
-                max="99" 
-                value={durationMinutes}
-                onChange={(e) => handleDurationChange(parseInt(e.target.value) || 1)}
-                disabled={status !== "idle"}
-                className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 disabled:opacity-30"
-              />
-            </div>
-
-            {/* 빠른 조정 버튼들 - 가독성을 위해 테두리 및 배경 대비 강화 */}
-            <div id="fast-adjust-buttons" className="grid grid-cols-4 gap-2">
-              {[-5, -1, 1, 5].map((amount) => (
-                <button
-                  key={amount}
-                  type="button"
-                  onClick={() => adjustDuration(amount)}
-                  disabled={status !== "idle"}
-                  className="py-1.5 text-xs font-mono font-bold text-slate-200 bg-slate-900 border-2 border-white/10 rounded-xl hover:bg-slate-800 hover:border-white/25 transition disabled:opacity-30 flex items-center justify-center gap-0.5 cursor-pointer"
-                >
-                  {amount > 0 ? <Plus size={9} className="text-cyan-400 font-bold" /> : <Minus size={9} className="text-pink-400 font-bold" />}
-                  {Math.abs(amount)}분
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 3. 메인 조작 제어 버튼 (네온 덱 스위치 스타일 - 고성능/고대비) */}
-        <div id="controls-section" className="space-y-2">
-          <div className="grid grid-cols-3 gap-2.5">
-            <button
-              id="btn-start"
-              onClick={startTimer}
-              disabled={status === "running"}
-              className={`py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider ${
-                status === "running"
-                  ? "bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none"
-                  : "bg-cyan-400 text-black hover:bg-cyan-300 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.4)] hover:shadow-[0_0_20px_rgba(34,211,238,0.6)] font-extrabold"
-              }`}
-            >
-              <Play size={13} fill="currentColor" />
-              시작
-            </button>
-
-            <button
-              id="btn-pause"
-              onClick={pauseTimer}
-              disabled={status !== "running"}
-              className={`py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider ${
-                status !== "running"
-                  ? "bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none"
-                  : "bg-amber-400 text-black hover:bg-amber-300 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(245,158,11,0.3)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] font-extrabold"
-              }`}
-            >
-              <Pause size={13} fill="currentColor" />
-              일시정지
-            </button>
-
-            <button
-              id="btn-reset"
-              onClick={resetTimer}
-              className="py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase bg-slate-900 text-slate-100 border-2 border-white/10 hover:border-white/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-800"
-            >
-              <RotateCcw size={13} />
-              초기화
-            </button>
-          </div>
-
-          {/* 알림음 정지 버튼 */}
-          <AnimatePresence>
-            {isAlarmPlaying && (
-              <motion.button
-                id="btn-stop-alarm"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                onClick={stopAlarm}
-                className="w-full py-3 px-3 rounded-xl text-xs font-mono font-black uppercase text-white bg-gradient-to-r from-rose-600 to-pink-600 shadow-xl shadow-rose-950/50 flex items-center justify-center gap-1.5 animate-bounce cursor-pointer"
-              >
-                <VolumeX size={14} />
-                알림음 정지
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* 4. 세계 현지 시간 (가독성이 비약적으로 향상된 디스플레이 블록 구성) */}
-        <div id="world-clocks-section" className="mt-4 pt-4 border-t-2 border-white/10">
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <Globe size={13} className="text-cyan-400" />
-            <span className="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">글로벌 해외 현지 시간</span>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-2">
-            {timeZones.map((tz) => {
-              const isDay = isDaytime(worldTimes[tz.id]);
-              return (
-                <div 
-                  key={tz.id}
-                  className="p-2.5 bg-slate-950 border-2 border-white/5 hover:border-white/15 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]"
-                >
-                  <div className="flex items-center justify-between mb-1 border-b border-white/5 pb-1">
-                    <span className="text-xs font-bold text-slate-100 flex items-center gap-0.5">
-                      <span className="text-xs leading-none select-none">{tz.flag}</span>
-                      {tz.cityKo}
-                    </span>
-                    <span>
-                      {isDay ? (
-                        <Sun className="text-amber-400" size={10} />
-                      ) : (
-                        <Moon className="text-indigo-300" size={10} />
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between mt-1">
-                    <span className="font-mono text-sm font-black text-cyan-300 tracking-tight drop-shadow-[0_1px_5px_rgba(34,211,238,0.2)]">
-                      {worldTimes[tz.id] || "00:00"}
-                    </span>
-                    <span className="text-[8px] font-mono text-indigo-300 font-extrabold uppercase">{tz.offset}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 푸터 영역: 고대비 하이테크 인스타그램 및 크레딧 */}
-        <div id="footer-section" className="mt-5 pt-3.5 border-t-2 border-white/10 text-center text-xs text-slate-400 font-medium flex flex-col items-center gap-2">
-          <div className="font-mono text-[10px] tracking-wider text-slate-400 uppercase">
-            제작자: <span className="text-white font-black hover:text-cyan-300 transition-colors duration-300">HYEWON</span>
-          </div>
-          <a 
-            href="https://www.instagram.com/rose_ai_log/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-slate-100 hover:text-pink-400 hover:border-pink-500/30 transition-all duration-300 bg-slate-950 hover:bg-pink-500/10 px-4 py-2 rounded-full border border-white/15 font-mono text-[10px] tracking-widest shadow-md uppercase"
-          >
-            <Instagram size={12} className="text-pink-500 animate-pulse" />
-            <span>@rose_ai_log</span>
-          </a>
-        </div>
-
-      </motion.div>
-    </div>
-  );
-}
+    // 초기 로딩 진입점
+    window.addEventListener("DOMContentLoaded", () => {
+      initWorldClocks();
+      updateDateAndTimes();
+      updateUI();
+      setInterval(updateDateAndTimes, 1000);
+    });
+  </script>
+</body>
+</html>
