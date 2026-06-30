@@ -218,28 +218,23 @@
       </div>
     </div>
 
-    {/* 푸터 영역: 고대비 하이테크 인스타그램 및 크레딧 */}
-        <div id="footer-section" className="mt-5 pt-3.5 border-t-2 border-white/10 text-center text-xs text-slate-400 font-medium flex flex-col items-center gap-2">
-          <a 
-            href="https://www.instagram.com/rose_ai_log/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="relative p-[1.5px] rounded-full overflow-hidden transition-all duration-300 hover:scale-[1.03] active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(236,72,153,0.2)] hover:shadow-[0_0_20px_rgba(236,72,153,0.4)]"
+    <!-- 7. 카드 내부 하단 고대비 크레딧 및 인스타그램 연결 -->
+    <div class="mt-5 pt-3.5 border-t-2 border-white/10 text-center text-xs text-slate-400 font-medium flex flex-col items-center gap-2">
+      <div class="font-mono text-[10px] tracking-wider text-slate-400 uppercase">
+        제작자: <span class="text-white font-black hover:text-cyan-300 transition-colors duration-300">HYEWON</span>
+      </div>
+      <a 
+        href="https://www.instagram.com/rose_ai_log/" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 text-pink-400 hover:text-pink-300 transition-all duration-300 bg-slate-950 hover:bg-pink-950/40 px-4 py-2 rounded-full border border-pink-500/30 hover:border-pink-500/60 font-sans text-[10px] tracking-wider shadow-[0_0_10px_rgba(236,72,153,0.15)] hover:shadow-[0_0_15px_rgba(236,72,153,0.3)] font-bold cursor-pointer"
           >
-            {/* 무지개색 배경 그라데이션 레이어 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-orange-400 via-yellow-400 via-green-400 via-blue-500 via-indigo-500 to-purple-500" />
-            
-            {/* 내부 솔리드 패널 (무지개 보더 효과용) */}
-            <div className="relative px-4 py-1.5 bg-slate-950 rounded-full flex items-center justify-center font-sans text-[10px] tracking-wider font-extrabold">
-              <span className="bg-gradient-to-r from-red-400 via-orange-300 via-yellow-300 via-green-400 via-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent font-black">
-                인스타그램 바로가기 (@rose_ai_log) ↗
-              </span>
-            </div>
-          </a>
-          <div className="font-mono text-[10px] tracking-wider text-slate-400 uppercase mt-1">
-            제작자: <span className="text-white font-black hover:text-cyan-300 transition-colors duration-300">HYEWON</span>
-          </div>
-        </div>
+        <i data-lucide="instagram" class="text-pink-500 animate-pulse w-3 h-3"></i>
+       <span>인스타그램 바로가기 (@rose_ai_log) ↗</span>
+      </a>
+    </div>
+
+  </div>
 
   <!-- 8. 웹 앱 코어 스크립트 (Vanilla JS) -->
   <script>
