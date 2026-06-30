@@ -99,37 +99,7 @@
       </div>
     </div>
 
-    <!-- 3. 원터치 퀵 프리셋 대시 -->
-    <div class="mb-4">
-      <div class="flex items-center gap-1.5 mb-2">
-        <i data-lucide="zap" class="text-cyan-400 w-3.5 h-3.5"></i>
-        <span class="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">원터치 퀵 프리셋</span>
-      </div>
-      <div class="grid grid-cols-4 gap-2">
-        <button onclick="applyPreset(25)" id="preset-pomodoro" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
-          <span class="text-base mb-0.5">🍅</span>
-          <span class="text-xs font-bold">집중</span>
-          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">25분</span>
-        </button>
-        <button onclick="applyPreset(5)" id="preset-short" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
-          <span class="text-base mb-0.5">☕</span>
-          <span class="text-xs font-bold">휴식</span>
-          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">5분</span>
-        </button>
-        <button onclick="applyPreset(15)" id="preset-long" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
-          <span class="text-base mb-0.5">🌳</span>
-          <span class="text-xs font-bold">리프레시</span>
-          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">15분</span>
-        </button>
-        <button onclick="applyPreset(50)" id="preset-intensive" class="preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20">
-          <span class="text-base mb-0.5">🔥</span>
-          <span class="text-xs font-bold">몰입</span>
-          <span class="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">50분</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- 4. 정밀 타이머 설정 영역 -->
+    <!-- 3. 정밀 타이머 설정 영역 -->
     <div class="mb-4 space-y-2">
       <div class="flex items-center justify-between text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">
         <span class="flex items-center gap-1">
@@ -181,7 +151,7 @@
       </div>
     </div>
 
-    <!-- 5. 메인 시스템 컨트롤러 스위치 -->
+    <!-- 4. 메인 시스템 컨트롤러 스위치 -->
     <div class="space-y-2">
       <div class="grid grid-cols-3 gap-2.5">
         <!-- 시작 -->
@@ -206,7 +176,7 @@
       </button>
     </div>
 
-    <!-- 6. 하이테크 글로벌 타임존 패널 -->
+    <!-- 5. 하이테크 글로벌 타임존 패널 (런던, 뉴욕, LA 전용 구성) -->
     <div class="mt-4 pt-4 border-t-2 border-white/10">
       <div class="flex items-center gap-1.5 mb-2.5">
         <i data-lucide="globe" class="text-cyan-400 w-3 h-3"></i>
@@ -214,11 +184,11 @@
       </div>
       
       <div class="grid grid-cols-3 gap-2" id="world-clock-grid">
-        <!-- JS에 의해 각 타임존 카드가 빌드됩니다. -->
+        <!-- JS에 의해 뉴욕, 런던, LA 타임존 카드가 실시간 빌드됩니다. -->
       </div>
     </div>
 
-    <!-- 7. 카드 내부 하단 고대비 크레딧 및 인스타그램 연결 -->
+    <!-- 6. 카드 내부 하단 고대비 크레딧 및 무지개 인스타그램 연결 -->
     <div id="footer-section" class="mt-5 pt-3.5 border-t-2 border-white/10 text-center text-xs text-slate-400 font-medium flex flex-col items-center gap-2">
       <a 
         href="https://www.instagram.com/rose_ai_log/" 
@@ -243,9 +213,9 @@
 
   </div>
 
-  <!-- 8. 웹 앱 코어 스크립트 (Vanilla JS) -->
+  <!-- 7. 웹 앱 코어 스크립트 (Vanilla JS) -->
   <script>
-    // 1. 상태 변수 정의
+    // 상태 변수 정의
     let durationMinutes = 5;
     let timeLeftSeconds = 5 * 60;
     let timerStatus = "idle"; // 'idle' | 'running' | 'paused' | 'finished'
@@ -255,17 +225,14 @@
     let beepInterval = null;
     let audioCtx = null;
 
-    // 타임존 구성 정보
+    // 타임존 구성 정보 (뉴욕, 런던, LA 구성)
     const timeZones = [
-      { id: "seoul", cityKo: "서울", zone: "Asia/Seoul", flag: "🇰🇷", offset: "KST" },
-      { id: "tokyo", cityKo: "도쿄", zone: "Asia/Tokyo", flag: "🇯🇵", offset: "JST" },
       { id: "newyork", cityKo: "뉴욕", zone: "America/New_York", flag: "🇺🇸", offset: "EST" },
-      { id: "losangeles", cityKo: "LA", zone: "America/Los_Angeles", flag: "🇺🇸", offset: "PST" },
       { id: "london", cityKo: "런던", zone: "Europe/London", flag: "🇬🇧", offset: "GMT" },
-      { id: "paris", cityKo: "파리", zone: "Europe/Paris", flag: "🇫🇷", offset: "CET" },
+      { id: "losangeles", cityKo: "LA", zone: "America/Los_Angeles", flag: "🇺🇸", offset: "PST" },
     ];
 
-    // 2. 초기 렌더링 및 글로벌 시계 구축
+    // 초기 렌더링 및 글로벌 시계 구축
     function initWorldClocks() {
       const grid = document.getElementById("world-clock-grid");
       grid.innerHTML = timeZones.map(tz => `
@@ -300,7 +267,7 @@
       return hour >= 6 && hour < 18;
     }
 
-    // 3. UI 실시간 동기화 업데이트 함수
+    // UI 실시간 동기화 업데이트 함수
     function updateUI() {
       // 시간 표시 변경
       const timeDisplay = document.getElementById("time-string");
@@ -348,25 +315,6 @@
         rangeSlider.setAttribute("disabled", "true");
       }
 
-      // 프리셋 활성 스타일 부여
-      document.querySelectorAll(".preset-btn").forEach(btn => {
-        btn.className = "preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-white/[0.02] border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20";
-      });
-      if (timerStatus === "idle") {
-        let activePresetId = "";
-        if (durationMinutes === 25) activePresetId = "preset-pomodoro";
-        else if (durationMinutes === 5) activePresetId = "preset-short";
-        else if (durationMinutes === 15) activePresetId = "preset-long";
-        else if (durationMinutes === 50) activePresetId = "preset-intensive";
-
-        if (activePresetId) {
-          const activeBtn = document.getElementById(activePresetId);
-          if (activeBtn) {
-            activeBtn.className = "preset-btn py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center bg-indigo-500/20 border-cyan-400 text-white shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/50";
-          }
-        }
-      }
-
       // 시작 / 일시정지 조작 버튼 상태 동기화
       const btnStart = document.getElementById("btn-start");
       const btnPause = document.getElementById("btn-pause");
@@ -393,7 +341,7 @@
       }
     }
 
-    // 4. 타이머 제어 비즈니스 로직
+    // 타이머 제어 비즈니스 로직
     function handleDurationChange(val) {
       let corrected = val;
       if (val > 99) corrected = 99;
@@ -406,25 +354,11 @@
       updateUI();
     }
 
-    // 시간 간접 증감
     function adjustDuration(amount) {
       if (timerStatus !== "idle") return;
       handleDurationChange(durationMinutes + amount);
     }
 
-    // 프리셋 적용
-    function applyPreset(minutes) {
-      if (timerStatus !== "idle") {
-        clearInterval(timerInterval);
-        stopAlarm();
-      }
-      durationMinutes = minutes;
-      timeLeftSeconds = minutes * 60;
-      timerStatus = "idle";
-      updateUI();
-    }
-
-    // 타이머 가동
     function startTimer() {
       if (timerStatus === "running") return;
 
@@ -453,7 +387,6 @@
       }, 1000);
     }
 
-    // 일시 정지
     function pauseTimer() {
       if (timerStatus !== "running") return;
       clearInterval(timerInterval);
@@ -461,7 +394,6 @@
       updateUI();
     }
 
-    // 초기화
     function resetTimer() {
       clearInterval(timerInterval);
       stopAlarm();
@@ -470,7 +402,7 @@
       updateUI();
     }
 
-    // 5. Web Audio API 기반 오디오 합성 및 5회 비프 알람 경고 루프
+    // Web Audio API 기반 오디오 합성 및 5회 비프 알람 경고 루프
     function triggerAlarm() {
       isAlarmPlaying = true;
       if (!audioCtx) {
@@ -527,7 +459,7 @@
       updateUI();
     }
 
-    // 6. 실시간 날짜 정보 및 글로벌 관측 타임존 업데이트 루틴
+    // 실시간 날짜 정보 및 글로벌 관측 타임존 업데이트 루틴
     function updateDateAndTimes() {
       const date = new Date();
       const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
@@ -551,7 +483,7 @@
         document.getElementById("us-today-date").innerText = "DATETIME ERROR";
       }
 
-      // 글로벌 6대 도시 실시간 시계 동기화
+      // 글로벌 3대 도시 실시간 시계 동기화
       timeZones.forEach(tz => {
         try {
           const timeStr = new Intl.DateTimeFormat("ko-KR", {
