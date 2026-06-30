@@ -1,0 +1,580 @@
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { 
+  Play, 
+  Pause, 
+  RotateCcw, 
+  VolumeX, 
+  Plus, 
+  Minus, 
+  Calendar, 
+  Clock, 
+  Sparkles,
+  Globe,
+  Zap,
+  Sun,
+  Moon,
+  Instagram
+} from "lucide-react";
+
+type TimerStatus = "idle" | "running" | "paused" | "finished";
+
+interface Preset {
+  id: string;
+  label: string;
+  minutes: number;
+  emoji: string;
+}
+
+interface TimeZoneConfig {
+  id: string;
+  cityKo: string;
+  zone: string;
+  flag: string;
+  offset: string;
+}
+
+export default function App() {
+  // 1. 타이머 상태 정의
+  const [durationMinutes, setDurationMinutes] = useState<number>(5); // 설정 시간 (기본 5분)
+  const [timeLeftSeconds, setTimeLeftSeconds] = useState<number>(5 * 60); // 남은 시간 (초 단위)
+  const [status, setStatus] = useState<TimerStatus>("idle"); // 타이머 상태
+  const [isAlarmPlaying, setIsAlarmPlaying] = useState<boolean>(false); // 알림음 재생 여부
+
+  // 2. Refs 정의 (타이머 인터벌 및 Web Audio API 관리)
+  const timerIntervalRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const beepIntervalRef = useRef<any>(null);
+
+  // 3. 오늘 날짜 구하기 (한국어 포맷 및 미국 동부 포맷)
+  const [todayDate, setTodayDate] = useState<string>("");
+  const [usTodayDate, setUsTodayDate] = useState<string>("");
+
+  // 4. 세계 타임존 리스트 구성 (고밀도 슬림 레이아웃용)
+  const timeZones: TimeZoneConfig[] = [
+    { id: "seoul", cityKo: "서울", zone: "Asia/Seoul", flag: "🇰🇷", offset: "KST" },
+    { id: "tokyo", cityKo: "도쿄", zone: "Asia/Tokyo", flag: "🇯🇵", offset: "JST" },
+    { id: "newyork", cityKo: "뉴욕", zone: "America/New_York", flag: "🇺🇸", offset: "EST" },
+    { id: "losangeles", cityKo: "LA", zone: "America/Los_Angeles", flag: "🇺🇸", offset: "PST" },
+    { id: "london", cityKo: "런던", zone: "Europe/London", flag: "🇬🇧", offset: "GMT" },
+    { id: "paris", cityKo: "파리", zone: "Europe/Paris", flag: "🇫🇷", offset: "CET" },
+  ];
+
+  const [worldTimes, setWorldTimes] = useState<Record<string, string>>({});
+
+  // 5. 타이머 프리셋 목록 정의
+  const presets: Preset[] = [
+    { id: "pomodoro", label: "집중", minutes: 25, emoji: "🍅" },
+    { id: "short-break", label: "휴식", minutes: 5, emoji: "☕" },
+    { id: "long-break", label: "리프레시", minutes: 15, emoji: "🌳" },
+    { id: "intensive", label: "몰입", minutes: 50, emoji: "🔥" },
+  ];
+
+  // 6. 실시간 업데이트 로직 (오늘 날짜 및 세계 시간)
+  useEffect(() => {
+    const days = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+    const updateDateTime = () => {
+      const date = new Date();
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const dayOfWeek = days[date.getDay()];
+      setTodayDate(`${year}년 ${month}월 ${day}일 ${dayOfWeek}`);
+
+      // 미국 뉴욕(동부 표준시) 기준 현재 날짜
+      try {
+        const options: Intl.DateTimeFormatOptions = {
+          timeZone: "America/New_York",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          weekday: "long"
+        };
+        setUsTodayDate(new Intl.DateTimeFormat("en-US", options).format(date));
+      } catch (e) {
+        setUsTodayDate("US Date loading...");
+      }
+
+      // 세계 현지 시간 포맷팅
+      const updatedWorldTimes: Record<string, string> = {};
+      timeZones.forEach((tz) => {
+        try {
+          updatedWorldTimes[tz.id] = new Intl.DateTimeFormat("ko-KR", {
+            timeZone: tz.zone,
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(date);
+        } catch (e) {
+          updatedWorldTimes[tz.id] = "--:--";
+        }
+      });
+      setWorldTimes(updatedWorldTimes);
+    };
+
+    updateDateTime();
+    const intervalId = setInterval(updateDateTime, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // 7. 시간 설정 입력값 조정 및 보정 함수
+  const handleDurationChange = (val: number) => {
+    let corrected = val;
+    if (val > 99) corrected = 99;
+    if (val < 1) corrected = 1;
+
+    setDurationMinutes(corrected);
+    if (status === "idle") {
+      setTimeLeftSeconds(corrected * 60);
+    }
+  };
+
+  const adjustDuration = (amount: number) => {
+    if (status !== "idle") return; 
+    const nextVal = durationMinutes + amount;
+    handleDurationChange(nextVal);
+  };
+
+  const applyPreset = (minutes: number) => {
+    if (status !== "idle") {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      stopAlarm();
+    }
+    setDurationMinutes(minutes);
+    setTimeLeftSeconds(minutes * 60);
+    setStatus("idle");
+  };
+
+  // 8. 타이머 제어 함수들
+  const startTimer = () => {
+    if (status === "running") return; 
+
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+
+    setStatus("running");
+
+    timerIntervalRef.current = setInterval(() => {
+      setTimeLeftSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerIntervalRef.current);
+          setStatus("finished");
+          triggerAlarm();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const pauseTimer = () => {
+    if (status !== "running") return;
+    clearInterval(timerIntervalRef.current);
+    setStatus("paused");
+  };
+
+  const resetTimer = () => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
+    stopAlarm();
+
+    setStatus("idle");
+    setTimeLeftSeconds(durationMinutes * 60);
+  };
+
+  // 9. Web Audio API를 활용한 알림음 구현
+  const triggerAlarm = () => {
+    setIsAlarmPlaying(true);
+
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+
+    const playSingleBeep = () => {
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    };
+
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+    }
+
+    let count = 0;
+    playSingleBeep();
+    count++;
+
+    beepIntervalRef.current = setInterval(() => {
+      if (count >= 5) {
+        clearInterval(beepIntervalRef.current);
+        beepIntervalRef.current = null;
+        setIsAlarmPlaying(false);
+        return;
+      }
+      playSingleBeep();
+      count++;
+    }, 1000);
+  };
+
+  const stopAlarm = () => {
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+      beepIntervalRef.current = null;
+    }
+    setIsAlarmPlaying(false);
+  };
+
+  // 10. 포맷터 (남은 시간을 MM:SS 형식으로 변환)
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    const formattedMins = mins < 10 ? `0${mins}` : `${mins}`;
+    const formattedSecs = secs < 10 ? `0${secs}` : `${secs}`;
+    return `${formattedMins}:${formattedSecs}`;
+  };
+
+  // 11. 상태 메시지 텍스트 및 스타일 가져오기
+  const getStatusInfo = () => {
+    switch (status) {
+      case "running":
+        return { 
+          text: "타이머 작동 중 (ONLINE)", 
+          color: "text-emerald-400 bg-emerald-950/70 border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.2)]" 
+        };
+      case "paused":
+        return { 
+          text: "일시정지됨 (PAUSED)", 
+          color: "text-amber-400 bg-amber-950/70 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]" 
+        };
+      case "finished":
+        return { 
+          text: "시간 종료! 알람 작동 중", 
+          color: "text-rose-100 bg-rose-700 border-rose-500 animate-pulse shadow-[0_0_20px_rgba(244,63,94,0.5)] font-bold" 
+        };
+      case "idle":
+      default:
+        return { 
+          text: "대기 중 (STANDBY)", 
+          color: "text-indigo-300 bg-indigo-950/70 border-indigo-500/40" 
+        };
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+
+  // 12. 진행 상황 비율 계산
+  const totalSecondsInitial = durationMinutes * 60;
+  const progressPercent = totalSecondsInitial > 0 
+    ? ((totalSecondsInitial - timeLeftSeconds) / totalSecondsInitial) * 100 
+    : 0;
+
+  // 13. 해당 도시 시간이 낮인지 확인
+  const isDaytime = (timeStr: string) => {
+    if (!timeStr || timeStr === "--:--") return true;
+    const hour = parseInt(timeStr.split(":")[0]);
+    return hour >= 6 && hour < 18;
+  };
+
+  return (
+    <div id="app-container" className="min-h-screen bg-[#070913] text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden select-none font-sans">
+      
+      {/* 백그라운드 우주 아우라 광원 장식 */}
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full bg-indigo-600/20 blur-[80px] sm:blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[300px] sm:w-[450px] h-[300px] sm:h-[450px] rounded-full bg-pink-600/15 blur-[90px] sm:blur-[130px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-cyan-500/10 blur-[150px] pointer-events-none" />
+
+      {/* 미세 그리드 격자 무늬 배경 오버레이 */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+
+      {/* 메인 스마트 타임 덱 */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        id="timer-card"
+        className="relative bg-slate-900/90 backdrop-blur-2xl border-2 border-white/15 shadow-[0_0_80px_rgba(99,102,241,0.2)] rounded-[32px] p-6 sm:p-7 max-w-md w-full overflow-hidden"
+      >
+        {/* 상단 장식 레이아웃 */}
+        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent" />
+        <div className="absolute top-1.5 right-4 text-[9px] font-mono text-cyan-400/50 select-none tracking-widest font-bold">SMART_DECK_V2</div>
+
+        {/* 상단: 오늘 날짜 및 헤더 */}
+        <div id="header-section" className="flex flex-col items-center text-center mt-1 mb-5">
+          
+          {/* 하이테크 스타일 날짜 패널 - 높은 대비 가독성 개선 */}
+          <div className="flex flex-col items-center gap-1.5 text-xs font-mono text-cyan-300 bg-slate-950 px-4 py-3 rounded-2xl border border-white/10 mb-4 w-full shadow-[inset_0_1px_4px_rgba(0,0,0,0.6)]">
+            <div className="flex items-center gap-1.5">
+              <Calendar size={13} className="text-cyan-400" />
+              <span id="today-date" className="text-slate-100 font-bold tracking-tight">{todayDate || "CALENDAR SYNC..."}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-indigo-300 font-semibold tracking-wider border-t border-white/5 pt-1.5 w-full justify-center">
+              <span className="text-indigo-400">🇺🇸 US EST:</span>
+              <span id="us-today-date" className="uppercase font-bold text-slate-200">{usTodayDate || "LOADING..."}</span>
+            </div>
+          </div>
+
+          <h1 id="app-title" className="text-2xl font-black text-white tracking-[0.12em] uppercase flex items-center gap-2">
+            <Clock className="text-cyan-400 animate-spin-slow" size={20} />
+            스마트타이머
+          </h1>
+          <div className="text-[10px] font-mono font-bold text-slate-400 mt-1 tracking-widest uppercase">INTELLIGENT TIMER DECK</div>
+        </div>
+
+        {/* 메인 시간 표시 패널 (고대비 LCD 스크린 스타일) */}
+        <div id="time-display-section" className="relative flex flex-col items-center justify-center bg-black border-2 border-white/10 rounded-2xl p-6 shadow-[inset_0_3px_15px_rgba(0,0,0,1)] mb-5">
+          
+          {/* 타이머 진행 네온 빔 트랙 */}
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-900 overflow-hidden rounded-b-2xl">
+            <motion.div 
+              className="h-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-pink-500 shadow-[0_0_10px_rgba(34,211,238,0.7)]" 
+              style={{ width: `${progressPercent}%` }}
+              layoutId="progressBar"
+              transition={{ type: "spring", stiffness: 80, damping: 15 }}
+            />
+          </div>
+
+          {/* 거대 LED 스타일 숫자 표시 - 가독성을 극대화한 Solid Cyan & Red 테마 */}
+          <motion.div 
+            key={timeLeftSeconds}
+            initial={{ scale: 0.96, opacity: 0.9 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            id="time-string" 
+            className={`text-6xl font-mono font-black tracking-tight transition-all duration-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] ${
+              status === "finished" 
+                ? "text-rose-500 drop-shadow-[0_0_20px_rgba(244,63,94,0.8)] animate-pulse" 
+                : "text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.4)]"
+            }`}
+          >
+            {formatTime(timeLeftSeconds)}
+          </motion.div>
+
+          {/* 시스템 상태 콘솔 뱃지 */}
+          <div id="status-badge" className={`mt-3.5 text-xs font-mono font-bold px-4 py-1.5 rounded-lg border ${statusInfo.color} transition-all duration-300 tracking-wider`}>
+            {statusInfo.text}
+          </div>
+        </div>
+
+        {/* 1. 원터치 타이머 프리셋 대시 (가독성 향상, 뚜렷한 대비 버튼) */}
+        <div id="presets-container" className="mb-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Zap size={13} className="text-cyan-400 fill-cyan-400/20" />
+            <span className="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">원터치 퀵 프리셋</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => applyPreset(preset.minutes)}
+                className={`py-2 px-1 rounded-xl border-2 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center ${
+                  durationMinutes === preset.minutes && status === "idle"
+                    ? "bg-indigo-950 border-cyan-400 text-white shadow-[0_0_12px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/50"
+                    : "bg-slate-950/80 border-white/10 text-slate-200 hover:bg-slate-900 hover:border-white/20"
+                }`}
+              >
+                <span className="text-base mb-0.5 filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{preset.emoji}</span>
+                <span className="text-xs font-bold">{preset.label}</span>
+                <span className="text-xs text-cyan-300 font-mono font-extrabold mt-0.5">{preset.minutes}분</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 2. 상세 시간 조작 콘솔 (고대비 텍스트 가독성 확보) */}
+        <div id="settings-section" className="mb-4 space-y-2">
+          <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">
+            <span className="flex items-center gap-1">
+              <Sparkles size={12} className="text-cyan-400" />
+              정밀 타이머 설정 (1 - 99분)
+            </span>
+            <span className="text-cyan-300 font-extrabold">{durationMinutes}분 설정됨</span>
+          </div>
+
+          <div className="space-y-3 p-3.5 bg-slate-950 border-2 border-white/10 rounded-2xl shadow-[inset_0_2px_6px_rgba(0,0,0,0.8)]">
+            <div className="flex gap-3 items-center">
+              {/* 숫자 입력창 */}
+              <input 
+                id="duration-number-input"
+                type="number" 
+                min="1" 
+                max="99"
+                value={durationMinutes}
+                onChange={(e) => handleDurationChange(parseInt(e.target.value) || 0)}
+                disabled={status !== "idle"}
+                className="w-16 h-9 text-center text-sm font-mono font-black text-cyan-300 bg-slate-900 border-2 border-white/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed"
+              />
+              {/* 테크 슬라이더 */}
+              <input 
+                id="duration-range-slider"
+                type="range" 
+                min="1" 
+                max="99" 
+                value={durationMinutes}
+                onChange={(e) => handleDurationChange(parseInt(e.target.value) || 1)}
+                disabled={status !== "idle"}
+                className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 disabled:opacity-30"
+              />
+            </div>
+
+            {/* 빠른 조정 버튼들 - 가독성을 위해 테두리 및 배경 대비 강화 */}
+            <div id="fast-adjust-buttons" className="grid grid-cols-4 gap-2">
+              {[-5, -1, 1, 5].map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  onClick={() => adjustDuration(amount)}
+                  disabled={status !== "idle"}
+                  className="py-1.5 text-xs font-mono font-bold text-slate-200 bg-slate-900 border-2 border-white/10 rounded-xl hover:bg-slate-800 hover:border-white/25 transition disabled:opacity-30 flex items-center justify-center gap-0.5 cursor-pointer"
+                >
+                  {amount > 0 ? <Plus size={9} className="text-cyan-400 font-bold" /> : <Minus size={9} className="text-pink-400 font-bold" />}
+                  {Math.abs(amount)}분
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 3. 메인 조작 제어 버튼 (네온 덱 스위치 스타일 - 고성능/고대비) */}
+        <div id="controls-section" className="space-y-2">
+          <div className="grid grid-cols-3 gap-2.5">
+            <button
+              id="btn-start"
+              onClick={startTimer}
+              disabled={status === "running"}
+              className={`py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider ${
+                status === "running"
+                  ? "bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none"
+                  : "bg-cyan-400 text-black hover:bg-cyan-300 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(34,211,238,0.4)] hover:shadow-[0_0_20px_rgba(34,211,238,0.6)] font-extrabold"
+              }`}
+            >
+              <Play size={13} fill="currentColor" />
+              시작
+            </button>
+
+            <button
+              id="btn-pause"
+              onClick={pauseTimer}
+              disabled={status !== "running"}
+              className={`py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase shadow-lg flex items-center justify-center gap-1.5 transition-all duration-300 tracking-wider ${
+                status !== "running"
+                  ? "bg-slate-950 text-slate-600 border-2 border-slate-800 cursor-not-allowed shadow-none"
+                  : "bg-amber-400 text-black hover:bg-amber-300 active:scale-95 cursor-pointer shadow-[0_0_15px_rgba(245,158,11,0.3)] hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] font-extrabold"
+              }`}
+            >
+              <Pause size={13} fill="currentColor" />
+              일시정지
+            </button>
+
+            <button
+              id="btn-reset"
+              onClick={resetTimer}
+              className="py-3.5 px-3 rounded-xl text-xs font-mono font-black uppercase bg-slate-900 text-slate-100 border-2 border-white/10 hover:border-white/25 active:scale-95 transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-800"
+            >
+              <RotateCcw size={13} />
+              초기화
+            </button>
+          </div>
+
+          {/* 알림음 정지 버튼 */}
+          <AnimatePresence>
+            {isAlarmPlaying && (
+              <motion.button
+                id="btn-stop-alarm"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                onClick={stopAlarm}
+                className="w-full py-3 px-3 rounded-xl text-xs font-mono font-black uppercase text-white bg-gradient-to-r from-rose-600 to-pink-600 shadow-xl shadow-rose-950/50 flex items-center justify-center gap-1.5 animate-bounce cursor-pointer"
+              >
+                <VolumeX size={14} />
+                알림음 정지
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* 4. 세계 현지 시간 (가독성이 비약적으로 향상된 디스플레이 블록 구성) */}
+        <div id="world-clocks-section" className="mt-4 pt-4 border-t-2 border-white/10">
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <Globe size={13} className="text-cyan-400" />
+            <span className="text-xs font-mono font-bold text-slate-300 tracking-wider uppercase">글로벌 해외 현지 시간</span>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2">
+            {timeZones.map((tz) => {
+              const isDay = isDaytime(worldTimes[tz.id]);
+              return (
+                <div 
+                  key={tz.id}
+                  className="p-2.5 bg-slate-950 border-2 border-white/5 hover:border-white/15 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-[inset_0_1px_3px_rgba(0,0,0,0.8)]"
+                >
+                  <div className="flex items-center justify-between mb-1 border-b border-white/5 pb-1">
+                    <span className="text-xs font-bold text-slate-100 flex items-center gap-0.5">
+                      <span className="text-xs leading-none select-none">{tz.flag}</span>
+                      {tz.cityKo}
+                    </span>
+                    <span>
+                      {isDay ? (
+                        <Sun className="text-amber-400" size={10} />
+                      ) : (
+                        <Moon className="text-indigo-300" size={10} />
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <span className="font-mono text-sm font-black text-cyan-300 tracking-tight drop-shadow-[0_1px_5px_rgba(34,211,238,0.2)]">
+                      {worldTimes[tz.id] || "00:00"}
+                    </span>
+                    <span className="text-[8px] font-mono text-indigo-300 font-extrabold uppercase">{tz.offset}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 푸터 영역: 고대비 하이테크 인스타그램 및 크레딧 */}
+        <div id="footer-section" className="mt-5 pt-3.5 border-t-2 border-white/10 text-center text-xs text-slate-400 font-medium flex flex-col items-center gap-2">
+          <div className="font-mono text-[10px] tracking-wider text-slate-400 uppercase">
+            제작자: <span className="text-white font-black hover:text-cyan-300 transition-colors duration-300">HYEWON</span>
+          </div>
+          <a 
+            href="https://www.instagram.com/rose_ai_log/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-slate-100 hover:text-pink-400 hover:border-pink-500/30 transition-all duration-300 bg-slate-950 hover:bg-pink-500/10 px-4 py-2 rounded-full border border-white/15 font-mono text-[10px] tracking-widest shadow-md uppercase"
+          >
+            <Instagram size={12} className="text-pink-500 animate-pulse" />
+            <span>@rose_ai_log</span>
+          </a>
+        </div>
+
+      </motion.div>
+    </div>
+  );
+}
